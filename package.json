@@ -1,0 +1,25 @@
+{
+  "name": "battery-destroyer",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build:helpers": "swiftc src/helpers/brightness_helper.swift -framework CoreGraphics -F /System/Library/PrivateFrameworks -framework DisplayServices -o src/helpers/brightness_helper && swiftc src/helpers/gpu_stress.swift -framework Metal -framework CoreGraphics -O -o src/helpers/gpu_stress",
+    "postinstall": "bun run build:helpers",
+    "start": "sudo bun run index.ts",
+    "dev": "sudo bun run --watch index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.2.14"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "ink": "^7.0.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "react": "^19.2.5"
+  }
+}
