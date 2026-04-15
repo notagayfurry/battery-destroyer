@@ -70,7 +70,7 @@ export function Disclaimer({ onAccept, onReject }: DisclaimerProps) {
           <Text
             bold
             color={selected === 0 ? "white" : "gray"}
-            backgroundColor={selected === 0 ? "red" : undefined}
+            backgroundColor={selected === 0 ? "blueBright" : undefined}
           >
             {" DECLINE & EXIT "}
           </Text>
@@ -79,7 +79,7 @@ export function Disclaimer({ onAccept, onReject }: DisclaimerProps) {
           <Text
             bold
             color={selected === 1 ? "white" : "gray"}
-            backgroundColor={selected === 1 ? "green" : undefined}
+            backgroundColor={selected === 1 ? "red" : undefined}
           >
             {" I ACCEPT THE RISKS "}
           </Text>
