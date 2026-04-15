@@ -1,4 +1,3 @@
-import React from "react";
 import { Box, Text } from "ink";
 import Spinner from "ink-spinner";
 import type { BatteryInfo } from "../utils/battery.js";
@@ -8,7 +7,6 @@ export type Phase =
   | "initial_charge"
   | "discharging"
   | "recharging"
-  | "stopping"
   | "cleanup";
 
 interface DashboardProps {
@@ -50,8 +48,6 @@ function phaseLabel(phase: Phase): string {
       return "Discharging (stress active)";
     case "recharging":
       return "Recharging to 100% (stress active)";
-    case "stopping":
-      return "Stopping...";
     case "cleanup":
       return "Restoring settings...";
   }
@@ -67,8 +63,6 @@ function phaseColor(phase: Phase): string {
       return "red";
     case "recharging":
       return "blue";
-    case "stopping":
-      return "yellow";
     case "cleanup":
       return "cyan";
   }

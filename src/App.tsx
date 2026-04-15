@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import { Disclaimer } from "./components/Disclaimer.js";
 import { Config, type RunConfig } from "./components/Config.js";
@@ -165,7 +165,7 @@ export function App() {
 
   // Handle Q / Ctrl+C during running state
   useInput(
-    (input, key) => {
+    (input) => {
       if (appState === "running" && (input === "q" || input === "Q")) {
         void cleanup();
       }

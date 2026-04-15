@@ -10,7 +10,6 @@ export interface BatteryInfo {
   cycleCount: number;
   temperature: number; // Celsius
   healthPercent: number;
-  wattage: number;
 }
 
 /**
@@ -40,7 +39,6 @@ export async function getBatteryInfo(): Promise<BatteryInfo> {
   const isCharging = getBool("IsCharging");
   const externalConnected = getBool("ExternalConnected");
   const temperature = getInt("Temperature") / 100; // reported in centi-celsius
-  const wattage = getInt("Watts") || 0;
 
   // "CurrentCapacity" is the system percentage (0-100), use it directly
   const percentage = getInt("CurrentCapacity");
@@ -59,20 +57,5 @@ export async function getBatteryInfo(): Promise<BatteryInfo> {
     cycleCount,
     temperature,
     healthPercent,
-    wattage,
   };
-}
-
-/**
- * Wait until the charger is plugged in.
- * Polls every 2 seconds.
- */
-export async function waitForCharger(
-  signal?: AbortSignal,
-): Promise<void> {
-  while (!signal?.aborted) {
-    const info = await getBatteryInfo();
-    if (info.isPluggedIn) return;
-    await new Promise((r) => setTimeout(r, 2000));
-  }
 }
