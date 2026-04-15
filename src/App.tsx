@@ -24,9 +24,77 @@ type AppState = "disclaimer" | "config" | "running" | "done";
 
 const LOW_THRESHOLD = 5;
 const HIGH_THRESHOLD = 100;
+const DISCLAIMER_EXIT_MESSAGES = [
+  "Wise choice. Exiting.",
+  "Probably for the best. Exiting.",
+  "A rare moment of restraint. Exiting.",
+  "Battery spared. Exiting.",
+  "Cowardice or wisdom? Exiting.",
+  "Your Mac lives another day. Exiting.",
+  "Mercy has been granted. Exiting.",
+  "No destruction today. Exiting.",
+  "The battery thanks you. Exiting.",
+  "Violence postponed. Exiting.",
+  "Disaster averted. Exiting.",
+  "This was the mature decision. Exiting.",
+  "You've chosen peace. Exiting.",
+  "The cells remain unpunished. Exiting.",
+  "A surprising display of judgment. Exiting.",
+  "Hardware abuse cancelled. Exiting.",
+  "Your laptop gets a reprieve. Exiting.",
+  "Cruelty deferred. Exiting.",
+  "The fan noise will have to wait. Exiting.",
+  "Battery torture skipped. Exiting.",
+  "An act of compassion. Exiting.",
+  "Sanity prevails. Exiting.",
+  "The destroyer stands down. Exiting.",
+  "A tactical retreat. Exiting.",
+  "The machine escapes for now. Exiting.",
+  "A disappointing lack of chaos. Exiting.",
+  "You've denied history its moment. Exiting.",
+  "The experiment dies before it begins. Exiting.",
+  "Destruction remains theoretical. Exiting.",
+  "Order has been restored. Exiting.",
+] as const;
+const CLEANUP_MESSAGES = [
+  "All settings restored. Your MacBook has survived... for now.",
+  "All settings restored. The battery lives to suffer another day.",
+  "Cleanup complete. Your MacBook remains technically operational.",
+  "Settings restored. The destroyer rests.",
+  "All settings restored. No permanent crimes detected.",
+  "Cleanup complete. The fans may now know peace.",
+  "Settings restored. Your laptop has been returned to civilian mode.",
+  "All settings restored. The battery endured the ritual.",
+  "Cleanup complete. The torture chamber is now closed.",
+  "Settings restored. Your MacBook escaped with dignity damage only.",
+  "All settings restored. The hardware has filed no formal complaint.",
+  "Cleanup complete. Normal service has resumed, more or less.",
+  "Settings restored. The cells are shaken, but stable.",
+  "All settings restored. Catastrophe has been postponed.",
+  "Cleanup complete. The heat death of this laptop is delayed.",
+  "Settings restored. The experiment is over. The trauma remains.",
+  "All settings restored. Your MacBook may never emotionally recover.",
+  "Cleanup complete. Battery abuse session concluded.",
+  "Settings restored. The machine has survived your curiosity.",
+  "All settings restored. Nothing is melting anymore.",
+  "Cleanup complete. The battery has been released back into the wild.",
+  "Settings restored. The silicon can unclench now.",
+  "All settings restored. We have stopped making the problem worse.",
+  "Cleanup complete. The laptop has been downgraded from victim to device.",
+  "Settings restored. Mission accomplished, if you are very strange.",
+  "All settings restored. The damage report is pending.",
+  "Cleanup complete. Your MacBook has left the danger zone.",
+  "Settings restored. The battery destroyer is off the clock.",
+  "All settings restored. The machine survives to spin its fans again.",
+  "Cleanup complete. The battery has seen things.",
+] as const;
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function pickRandomMessage(messages: readonly string[]): string {
+  return messages[Math.floor(Math.random() * messages.length)] ?? "";
 }
 
 export function App() {
@@ -87,7 +155,7 @@ export function App() {
     } catch { /* best effort */ }
 
     setDoneMessage(
-      message ?? "All settings restored. Your MacBook has survived... for now.",
+      message ?? pickRandomMessage(CLEANUP_MESSAGES),
     );
     setAppState("done");
 
@@ -256,7 +324,7 @@ export function App() {
       <Disclaimer
         onAccept={() => setAppState("config")}
         onReject={() => {
-          setDoneMessage("Wise choice. Exiting.");
+          setDoneMessage(pickRandomMessage(DISCLAIMER_EXIT_MESSAGES));
           setAppState("done");
           setTimeout(() => exit(), 500);
         }}
