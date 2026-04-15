@@ -6,10 +6,48 @@ import { $ } from "bun";
 
 let caffeinateProc: ReturnType<typeof Bun.spawn> | null = null;
 
-export interface SleepSettings {
+interface PowerSleepSettings {
   displaysleep: number;
   disksleep: number;
   sleep: number;
+}
+
+export interface SleepSettings {
+  battery: PowerSleepSettings;
+  ac: PowerSleepSettings;
+}
+
+const DEFAULT_SLEEP_SETTINGS: PowerSleepSettings = {
+  displaysleep: 10,
+  disksleep: 10,
+  sleep: 1,
+};
+
+function extractPmsetSection(output: string, header: string): string {
+  const marker = `${header}:\n`;
+  const start = output.indexOf(marker);
+  if (start === -1) return "";
+
+  const remainder = output.slice(start + marker.length);
+  const nextSectionStart = remainder.search(/\n[A-Za-z][A-Za-z ]*:\n/);
+  return nextSectionStart === -1
+    ? remainder
+    : remainder.slice(0, nextSectionStart);
+}
+
+function parsePowerSettings(section: string): PowerSleepSettings {
+  const getVal = (key: keyof PowerSleepSettings): number => {
+    const match = section.match(new RegExp(`\\b${key}\\s+(\\d+)`));
+    return match
+      ? parseInt(match[1]!, 10)
+      : DEFAULT_SLEEP_SETTINGS[key];
+  };
+
+  return {
+    displaysleep: getVal("displaysleep"),
+    disksleep: getVal("disksleep"),
+    sleep: getVal("sleep"),
+  };
 }
 
 /**
@@ -17,17 +55,12 @@ export interface SleepSettings {
  */
 export async function getSleepSettings(): Promise<SleepSettings> {
   const out = await $`pmset -g custom`.text();
-
-  const getVal = (key: string): number => {
-    // Look in Battery Power section first, then AC
-    const match = out.match(new RegExp(`${key}\\s+(\\d+)`));
-    return match ? parseInt(match[1]!, 10) : 0;
-  };
+  const batterySection = extractPmsetSection(out, "Battery Power");
+  const acSection = extractPmsetSection(out, "AC Power");
 
   return {
-    displaysleep: getVal("displaysleep"),
-    disksleep: getVal("disksleep"),
-    sleep: getVal("sleep"),
+    battery: parsePowerSettings(batterySection || out),
+    ac: parsePowerSettings(acSection || out),
   };
 }
 
@@ -60,7 +93,11 @@ export async function restoreSleep(settings: SleepSettings): Promise<void> {
     caffeinateProc = null;
   }
 
-  await $`pmset -a displaysleep ${settings.displaysleep}`.quiet();
-  await $`pmset -a disksleep ${settings.disksleep}`.quiet();
-  await $`pmset -a sleep ${settings.sleep}`.quiet();
+  await $`pmset -b displaysleep ${settings.battery.displaysleep}`.quiet();
+  await $`pmset -b disksleep ${settings.battery.disksleep}`.quiet();
+  await $`pmset -b sleep ${settings.battery.sleep}`.quiet();
+
+  await $`pmset -c displaysleep ${settings.ac.displaysleep}`.quiet();
+  await $`pmset -c disksleep ${settings.ac.disksleep}`.quiet();
+  await $`pmset -c sleep ${settings.ac.sleep}`.quiet();
 }

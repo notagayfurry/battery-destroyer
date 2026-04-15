@@ -49,17 +49,15 @@ export async function setBrightness(level: number): Promise<void> {
   const clamped = Math.max(0, Math.min(1, level));
   const helper = getHelperPath();
 
-  try {
-    const proc = Bun.spawn([helper, "set", String(clamped)], {
-      stdout: "ignore",
-      stderr: "pipe",
-    });
-    await proc.exited;
-    if (proc.exitCode !== 0) {
-      const err = await new Response(proc.stderr).text();
-      throw new Error(err);
-    }
-  } catch (e) {
-    console.error(`Warning: Could not set brightness: ${e}`);
+  const proc = Bun.spawn([helper, "set", String(clamped)], {
+    stdout: "ignore",
+    stderr: "pipe",
+  });
+  await proc.exited;
+  if (proc.exitCode !== 0) {
+    const err = await new Response(proc.stderr).text();
+    throw new Error(
+      err.trim() || `brightness helper exited with code ${proc.exitCode}`,
+    );
   }
 }

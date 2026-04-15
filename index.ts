@@ -55,6 +55,7 @@ if (depErrors.length > 0) {
 // ── Emergency cleanup on uncaught errors / signals ──────────
 let emergencySleepSettings: SleepSettings | null = null;
 let emergencyBrightness: number | null = null;
+let emergencyCleanupStarted = false;
 
 // Capture initial settings before the app starts, for emergency restore
 (async () => {
@@ -67,6 +68,9 @@ let emergencyBrightness: number | null = null;
 })();
 
 async function emergencyCleanup() {
+  if (emergencyCleanupStarted) return;
+  emergencyCleanupStarted = true;
+
   console.log("\n\x1b[33m⚠ Emergency cleanup...\x1b[0m");
   stopStress();
 
@@ -94,6 +98,10 @@ process.on("SIGINT", emergencyCleanup);
 process.on("SIGTERM", emergencyCleanup);
 process.on("uncaughtException", async (err) => {
   console.error("\x1b[31mUncaught exception:\x1b[0m", err);
+  await emergencyCleanup();
+});
+process.on("unhandledRejection", async (reason) => {
+  console.error("\x1b[31mUnhandled rejection:\x1b[0m", reason);
   await emergencyCleanup();
 });
 

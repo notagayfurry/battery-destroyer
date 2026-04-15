@@ -25,6 +25,10 @@ type AppState = "disclaimer" | "config" | "running" | "done";
 const LOW_THRESHOLD = 5;
 const HIGH_THRESHOLD = 100;
 
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function App() {
   const { exit } = useApp();
 
@@ -41,11 +45,18 @@ export function App() {
   const [doneMessage, setDoneMessage] = useState("");
 
   // Saved initial settings for cleanup
-  const savedBrightness = useRef<number>(0.5);
+  const savedBrightness = useRef<number | null>(null);
   const savedSleep = useRef<SleepSettings>({
-    displaysleep: 10,
-    disksleep: 10,
-    sleep: 1,
+    battery: {
+      displaysleep: 10,
+      disksleep: 10,
+      sleep: 1,
+    },
+    ac: {
+      displaysleep: 10,
+      disksleep: 10,
+      sleep: 1,
+    },
   });
 
   const startTimeRef = useRef<number>(0);
@@ -53,7 +64,7 @@ export function App() {
   const timerMinutesRef = useRef<number | null>(null);
 
   // Cleanup function: restore all settings
-  const cleanup = useCallback(async () => {
+  const cleanup = useCallback(async (message?: string) => {
     if (stoppingRef.current) return;
     stoppingRef.current = true;
 
@@ -65,16 +76,18 @@ export function App() {
       await enableCharging();
     } catch { /* best effort */ }
 
-    try {
-      await setBrightness(savedBrightness.current);
-    } catch { /* best effort */ }
+    if (savedBrightness.current != null) {
+      try {
+        await setBrightness(savedBrightness.current);
+      } catch { /* best effort */ }
+    }
 
     try {
       await restoreSleep(savedSleep.current);
     } catch { /* best effort */ }
 
     setDoneMessage(
-      "All settings restored. Your MacBook has survived... for now.",
+      message ?? "All settings restored. Your MacBook has survived... for now.",
     );
     setAppState("done");
 
@@ -86,7 +99,7 @@ export function App() {
   useInput(
     (input, key) => {
       if (appState === "running" && (input === "q" || input === "Q")) {
-        cleanup();
+        void cleanup();
       }
     },
   );
@@ -100,118 +113,118 @@ export function App() {
     if (appState !== "running") return;
 
     let cancelled = false;
-    let pollInterval: ReturnType<typeof setInterval>;
-    let timerInterval: ReturnType<typeof setInterval>;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let timerInterval: ReturnType<typeof setInterval> | null = null;
 
     const run = async () => {
-      // 1. Save initial settings
       try {
-        savedBrightness.current = await getBrightness();
-      } catch {
-        savedBrightness.current = 0.5;
-      }
-      try {
-        savedSleep.current = await getSleepSettings();
-      } catch { /* use defaults */ }
+        // 1. Save initial settings
+        try {
+          savedBrightness.current = await getBrightness();
+        } catch {
+          savedBrightness.current = null;
+        }
+        try {
+          savedSleep.current = await getSleepSettings();
+        } catch { /* use defaults */ }
 
-      // 2. Disable sleep (brightness set later after charger is disconnected)
-      try {
-        await disableSleep();
-      } catch { /* non-fatal */ }
+        // 2. Disable sleep (brightness set later after charger is disconnected)
+        try {
+          await disableSleep();
+        } catch { /* non-fatal */ }
 
-      // 3. Check if charger is plugged in
-      setPhase("waiting_charger");
-      let info = await getBatteryInfo();
-      setBattery(info);
-
-      while (!info.isPluggedIn && !cancelled) {
-        await new Promise((r) => setTimeout(r, 2000));
-        info = await getBatteryInfo();
+        // 3. Check if charger is plugged in
+        setPhase("waiting_charger");
+        let info = await getBatteryInfo();
         setBattery(info);
-      }
-      if (cancelled) return;
 
-      // 4. Enable charging and wait for 100%
-      setPhase("initial_charge");
-      try {
+        while (!info.isPluggedIn && !cancelled) {
+          await new Promise((r) => setTimeout(r, 2000));
+          info = await getBatteryInfo();
+          setBattery(info);
+        }
+        if (cancelled) return;
+
+        // 4. Enable charging and wait for 100%
+        setPhase("initial_charge");
         await enableCharging();
-      } catch { /* may already be enabled */ }
 
-      while (!cancelled) {
-        info = await getBatteryInfo();
-        setBattery(info);
-        if (info.percentage >= HIGH_THRESHOLD) break;
-        await new Promise((r) => setTimeout(r, 3000));
-      }
-      if (cancelled) return;
+        while (!cancelled) {
+          info = await getBatteryInfo();
+          setBattery(info);
+          if (info.percentage >= HIGH_THRESHOLD) break;
+          await new Promise((r) => setTimeout(r, 3000));
+        }
+        if (cancelled) return;
 
-      // 5. Start the destroy loop
-      startTimeRef.current = Date.now();
+        // 5. Start the destroy loop
+        startTimeRef.current = Date.now();
 
-      // Start timing
-      timerInterval = setInterval(() => {
-        const elapsed = Date.now() - startTimeRef.current;
-        setElapsedMs(elapsed);
+        // Start timing
+        timerInterval = setInterval(() => {
+          const elapsed = Date.now() - startTimeRef.current;
+          setElapsedMs(elapsed);
 
-        const tm = timerMinutesRef.current;
-        if (tm != null) {
-          const remaining = tm * 60 * 1000 - elapsed;
-          setTimerRemainingMs(Math.max(0, remaining));
-          if (remaining <= 0) {
-            cleanupRef.current();
+          const tm = timerMinutesRef.current;
+          if (tm != null) {
+            const remaining = tm * 60 * 1000 - elapsed;
+            setTimerRemainingMs(Math.max(0, remaining));
+            if (remaining <= 0) {
+              void cleanupRef.current();
+            }
+          }
+        }, 1000);
+
+        // Start CPU stress
+        startStress();
+        setStressActive(true);
+
+        // Disable charging -> start discharging
+        let currentPhase: "discharging" | "recharging" = "discharging";
+        setPhase("discharging");
+        await disableCharging();
+
+        // Set brightness to max AFTER disabling charger (needs a short delay
+        // to take effect properly on Apple Silicon)
+        await new Promise((r) => setTimeout(r, 3500));
+        try {
+          await setBrightness(1.0);
+        } catch { /* non-fatal */ }
+
+        // Main cycle loop
+        let currentCycles = 0;
+
+        while (!cancelled && !stoppingRef.current) {
+          info = await getBatteryInfo();
+          setBattery(info);
+
+          if (currentPhase === "discharging" && info.percentage <= LOW_THRESHOLD) {
+            // Hit the low threshold! Switch to charging
+            currentPhase = "recharging";
+            setPhase("recharging");
+            await enableCharging();
+          } else if (currentPhase === "recharging" && info.percentage >= HIGH_THRESHOLD) {
+            // Fully charged: increment cycle and switch to discharging
+            currentCycles++;
+            setCycleCount(currentCycles);
+            currentPhase = "discharging";
+            setPhase("discharging");
+            await disableCharging();
+          }
+
+          await new Promise((r) => setTimeout(r, 5000));
+        }
+      } catch (error) {
+        if (!cancelled && !stoppingRef.current) {
+          try {
+            await cleanup(
+              `Stopped after error: ${formatError(error)}. Settings restored.`,
+            );
+          } catch {
+            setDoneMessage(`Stopped after error: ${formatError(error)}`);
+            setAppState("done");
           }
         }
-      }, 1000);
-
-      // Start CPU stress
-      startStress();
-      setStressActive(true);
-
-      // Disable charging -> start discharging
-      let currentPhase: "discharging" | "recharging" = "discharging";
-      setPhase("discharging");
-      try {
-        await disableCharging();
-      } catch (e) {
-        // If we can't disable charging, this is fatal for the loop
-        setDoneMessage(`Error: Could not disable charging: ${e}`);
-        setAppState("done");
-        return;
-      }
-
-      // Set brightness to max AFTER disabling charger (needs a short delay
-      // to take effect properly on Apple Silicon)
-      await new Promise((r) => setTimeout(r, 3500));
-      try {
-        await setBrightness(1.0);
-      } catch { /* non-fatal */ }
-
-      // Main cycle loop
-      let currentCycles = 0;
-
-      while (!cancelled && !stoppingRef.current) {
-        info = await getBatteryInfo();
-        setBattery(info);
-
-        if (currentPhase === "discharging" && info.percentage <= LOW_THRESHOLD) {
-          // Hit the low threshold! Switch to charging
-          currentPhase = "recharging";
-          setPhase("recharging");
-          try {
-            await enableCharging();
-          } catch { /* best effort */ }
-        } else if (currentPhase === "recharging" && info.percentage >= HIGH_THRESHOLD) {
-          // Fully charged: increment cycle and switch to discharging
-          currentCycles++;
-          setCycleCount(currentCycles);
-          currentPhase = "discharging";
-          setPhase("discharging");
-          try {
-            await disableCharging();
-          } catch { /* best effort */ }
-        }
-
-        await new Promise((r) => setTimeout(r, 5000));
       }
     };
 
@@ -228,12 +241,12 @@ export function App() {
       } catch { /* ignore */ }
     }, 5000);
 
-    run();
+    void run();
 
     return () => {
       cancelled = true;
-      clearInterval(pollInterval);
-      clearInterval(timerInterval!);
+      if (pollInterval) clearInterval(pollInterval);
+      if (timerInterval) clearInterval(timerInterval);
     };
   }, [appState]); // eslint-disable-line react-hooks/exhaustive-deps
 
